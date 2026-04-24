@@ -1,0 +1,373 @@
+:root {
+    --bg-color: #f8f9fa;
+    --text-color: #212529;
+    --card-bg: #ffffff;
+    --border-color: #dee2e6;
+    --nav-tabs-border: #dee2e6;
+}
+
+[data-theme="dark"] {
+    --bg-color: #121212;
+    --text-color: #e0e0e0;
+    --card-bg: #1e1e1e;
+    --border-color: #333333;
+    --nav-tabs-border: #333333;
+}
+
+body {
+    background-color: var(--bg-color);
+    color: var(--text-color);
+    transition: background-color 0.3s ease, color 0.3s ease;
+}
+
+.card {
+    background-color: var(--card-bg);
+    color: var(--text-color);
+    border: 0;
+    border-radius: 8px;
+    overflow: hidden;
+}
+
+.card-header.bg-primary {
+    background-color: #0d6efd !important;
+}
+
+.shadow-sm {
+    box-shadow: 0 0.125rem 0.25rem rgba(0, 0, 0, 0.075) !important;
+}
+
+h5, h6 {
+    color: #495057;
+}
+
+[data-theme="dark"] h5, 
+[data-theme="dark"] h6 {
+    color: #e0e0e0;
+}
+
+.card-header {
+    border-bottom-color: var(--border-color);
+}
+
+.list-group-item {
+    background-color: var(--card-bg);
+    border-color: var(--border-color);
+    color: var(--text-color);
+}
+
+.form-control, .form-select {
+    background-color: var(--card-bg);
+    border-color: var(--border-color);
+    color: var(--text-color);
+}
+
+.form-control:focus, .form-select:focus {
+    background-color: var(--card-bg);
+    color: var(--text-color);
+}
+
+.nav-tabs {
+    border-bottom-color: var(--nav-tabs-border);
+}
+
+.nav-tabs .nav-link.active {
+    background-color: var(--card-bg) !important;
+    color: var(--text-color) !important;
+    border-color: var(--border-color) var(--border-color) var(--card-bg) !important;
+}
+
+.nav-tabs .nav-link {
+    color: var(--text-color);
+}
+
+.nav-tabs .nav-link:hover {
+    border-color: var(--border-color);
+}
+
+.text-muted {
+    color: #6c757d !important;
+}
+
+[data-theme="dark"] .text-muted {
+    color: #a0a0a0 !important;
+}
+
+[data-theme="dark"] .bg-light {
+    background-color: #2a2a2a !important;
+}
+
+#container-main {
+    align-items: stretch;
+}
+
+#corpusList .list-group-item {
+    cursor: pointer;
+}
+
+#corpusList .list-group-item.active {
+    background-color: #0d6efd;
+    border-color: #0d6efd;
+    color: white;
+}
+
+/* Estados del cuadro de progreso */
+#statusBox {
+    transition: all 0.3s ease;
+    padding: 10px;
+    border: 1px solid #ddd;
+    border-radius: 5px;
+    font-weight: 500;
+}
+
+.status-processing {
+    background-color: #fff3cd;
+    /* Amarillo suave */
+    border-color: #ffeeb1 !important;
+    color: #856404;
+    animation: pulse-status 2s infinite;
+}
+
+.status-success {
+    background-color: #d4edda;
+    /* Verde suave */
+    border-color: #c3e6cb !important;
+    color: #155724;
+}
+
+.status-error {
+    background-color: #f8d7da;
+    /* Rojo suave */
+    border-color: #f5c6cb !important;
+    color: #721c24;
+}
+
+/* Animación de pulso para indicar actividad */
+@keyframes pulse-status {
+    0% {
+        opacity: 1;
+    }
+
+    50% {
+        opacity: 0.7;
+    }
+
+    100% {
+        opacity: 1;
+    }
+}
+
+#progressBar {
+    transition: width 0.6s ease;
+}
+
+/* Estilos para el gestor de archivos (Dashboard Cards) */
+.file-card {
+    background-color: var(--card-bg);
+    border: 1px solid var(--border-color);
+    border-radius: 12px;
+    padding: 1.25rem;
+    transition: all 0.3s ease;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+}
+
+.file-card:hover {
+    background-color: var(--bg-color);
+    transform: translateY(-5px);
+    box-shadow: 0 8px 15px rgba(0,0,0,0.1);
+}
+
+.border-excel { border-left: 5px solid #198754; } /* Bootstrap success (verde) */
+.border-grafo { border-left: 5px solid #0d6efd; } /* Bootstrap primary (azul) */
+.border-json  { border-left: 5px solid #ffc107; } /* Bootstrap warning (amarillo) */
+.border-text  { border-left: 5px solid #6c757d; } /* Bootstrap secondary (gris) */
+
+.file-title {
+    font-weight: bold;
+    margin-bottom: 0.5rem;
+}
+
+.file-name {
+    font-size: 0.85rem;
+    color: var(--text-color);
+    word-break: break-all;
+}
+
+.data-font {
+    font-family: 'JetBrains Mono', monospace;
+}
+
+/* Fullscreen Graph Mode */
+#graphWrapper.graph-fullscreen {
+    position: fixed !important;
+    top: 0;
+    left: 0;
+    width: 100vw;
+    height: 100vh;
+    z-index: 9999;
+    background-color: var(--bg-color);
+    margin: 0 !important;
+    padding: 20px;
+    display: flex;
+    flex-direction: column;
+}
+
+#graphWrapper.graph-fullscreen #graphView {
+    flex-grow: 1;
+    height: auto !important;
+    border: none !important;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+    border-radius: 8px;
+}
+
+#graphWrapper.graph-dark-mode #graphView {
+    background-color: #1a1a1a !important;
+    border-color: #333 !important;
+}
+
+/* Sincronización de panel lateral con pantalla completa */
+.offcanvas {
+    z-index: 10001 !important; 
+}
+
+.offcanvas-backdrop {
+    z-index: 10000 !important;
+}
+
+/* Custom Navbar Styling */
+.navbar.bg-primary, 
+.navbar {
+    background-color: #3164f4 !important; /* Este es el azul exacto detectado en tu imagen */
+    background-image: none !important; /* Eliminamos el gradiente que causa el parche */
+    border: none !important;             /* Elimina bordes sutiles */
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1); /* Mantenemos una sombra sutil */
+    transition: background-color 0.4s ease;
+    padding-top: 0.5rem;
+    padding-bottom: 0.5rem;
+}
+
+/* Ajustar los botones de la navbar para que combinen */
+.navbar .nav-link, .navbar-text {
+    color: white !important;
+}
+
+/* User Capsule Styling */
+.user-capsule {
+    background-color: rgba(255, 255, 255, 0.15); /* Blanco semi-transparente */
+    padding: 6px 15px;
+    border-radius: 50px; /* Forma de cápsula */
+    border: 1px solid rgba(255, 255, 255, 0.3); /* Borde sutil */
+    transition: all 0.3s ease;
+    display: flex;
+    align-items: center;
+}
+
+.user-capsule:hover {
+    background-color: rgba(255, 255, 255, 0.25); /* Resalta un poco más al pasar el mouse */
+    cursor: default;
+}
+
+#userDisplay {
+    font-weight: 500;
+    font-size: 0.9rem;
+    white-space: nowrap;
+}
+
+.navbar-brand img {
+    transition: transform 0.3s ease;
+    object-fit: contain; /* Evita que la imagen se estire */
+    max-width: 100%;    /* Asegura responsividad en móviles */
+    margin-top: -5px;   /* Ajuste sutil de alineación */
+    margin-bottom: -5px;
+}
+
+.navbar-brand:hover img {
+    transform: scale(1.05); /* Efecto sutil al pasar el mouse */
+}
+
+[data-theme="dark"] .navbar {
+    background: linear-gradient(90deg, #1f2937 0%, #111827 100%) !important;
+}
+
+/* Custom Sub-Tabs Styling (Inicio) */
+#subInicioTabs .nav-link {
+    color: var(--text-color);
+    border-radius: 20px;
+    padding: 0.5rem 1.25rem;
+    margin-right: 0.5rem;
+    transition: all 0.3s ease;
+    font-weight: 500;
+}
+
+#subInicioTabs .nav-link:hover {
+    background-color: rgba(13, 110, 253, 0.1);
+}
+
+#subInicioTabs .nav-link.active {
+    background-color: #0d6efd;
+    color: white;
+}
+
+[data-theme="dark"] #subInicioTabs .nav-link:hover {
+    background-color: rgba(13, 110, 253, 0.3);
+}
+
+/* Info Cards en Pestaña Inicio */
+.info-card {
+    border-radius: 12px !important;
+    transition: transform 0.3s ease, box-shadow 0.3s ease;
+}
+
+.info-card:hover {
+    transform: translateY(-5px);
+    box-shadow: 0 10px 20px rgba(0,0,0,0.08) !important;
+}
+
+[data-theme="dark"] .info-card {
+    background-color: #212529 !important;
+}
+
+/* Utilidades */
+.text-justify {
+    text-align: justify;
+}
+
+#info-participantes .list-unstyled {
+    margin-bottom: 0;
+}
+
+#graphView {
+    transition: opacity 0.6s ease-in-out;
+}
+
+/* Opacidad muy baja para los elementos no seleccionados */
+.elements-faded {
+    opacity: 0.05 !important;
+    transition: opacity 0.3s ease;
+}
+
+/* Resaltado total para el nodo enfocado */
+.element-highlight {
+    opacity: 1 !important;
+    z-index: 999;
+}
+
+/* Estilos para resultados de búsqueda */
+.search-result-item {
+    padding: 8px 12px;
+    border-bottom: 1px solid var(--border-color);
+    text-transform: capitalize;
+    cursor: pointer;
+    transition: background-color 0.2s ease;
+}
+
+.search-result-item:hover {
+    background-color: var(--card-bg);
+}
+
+[data-theme="dark"] .search-result-item:hover {
+    background-color: #2c3034;
+}

@@ -1,0 +1,10 @@
+Flask
+Werkzeug
+networkx
+pandas
+requests
+spacy
+tqdm
+nltk
+text2graphapi
+openpyxl
