@@ -1,4 +1,4 @@
-# Diccionario Inverso - Estación de Trabajo GECO3
+# Diccionario Inverso 
 
 Este proyecto es una plataforma avanzada de análisis semántico y procesamiento de lenguaje natural diseñada para la creación y exploración de **Diccionarios Inversos**. Utiliza el motor de GECO3 para gestionar corpus, procesar textos y visualizar redes de asociaciones semánticas mediante grafos interactivos.
 
