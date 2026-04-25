@@ -52,11 +52,10 @@ DICCIONARIOS_PROTEGIDOS = [
     "03_Diccionario_de_Ingeniería_Química",
     "03_Diccionario_de_Ingeniería_Aeroespacial",
     "03_Diccionario de Ingeniería Aeronáutica",
-    "03_Diccionario de Ingeniería Mecánica",
-    "03_Diccionario de Ingeniería Automotriz",
     "03_Diccionario_de_Ingeniería_Mecatrónica",
     "03_Diccionario_de_Ingeniería_Electrónica",
-    "03_Diccionario_de_Ingeniería_en_Sistemas_Computacionales"
+    "03_Diccionario_de_Ingeniería_en_Sistemas_Computacionales",
+    "03_Diccionario_de_Ingeniería_Mécanica_Automotriz"
 ]
 
 url_prefix = ''
