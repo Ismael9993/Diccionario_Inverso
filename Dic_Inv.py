@@ -482,8 +482,37 @@ def obtener_metadatos_corpus(client, corpus_id):
     return {k: sorted(list(v)) for k, v in metadatos.items()}
 
 # --------------------------------------------
-#   Extractor de términos y definiciones (aún por mejorar)
+#   Extractor de términos y definiciones (versión mejorada)
 # --------------------------------------------
+
+# Verbos que invierten roles: término a la DERECHA del verbo
+VERBOS_INVERSOS: set = {"denominar", "conocer", "llamar", "designar", "apellidar"}
+# Verbos cuya presencia indica una definición legítima
+VERBOS_DEFINITORIOS: List[str] = ["ser", "definir", "conocer", "entender", "identificar", "denominar"]
+# Núcleos nominales genéricos que no constituyen términos válidos
+BLACKLIST_NUCLEOS: set = {
+    "caso", "ejemplo", "vía", "manera", "forma", "tipo", "parte",
+    "aspecto", "cosa", "hecho", "vez", "tiempo", "lugar", "situación",
+    "resultado", "proceso", "problema", "año", "mes", "día", "síntoma", "transmisión",
+}
+# Palabras que indican perífrasis verbal (se ignoran como verbo principal)
+VERBOS_MODALES: set = {"poder", "deber", "soler", "querer", "ir"}
+# Verbos que invalidan una definición como verbo principal
+VERBOS_PROHIBIDOS: set = {"haber", "existir", "tener", "parecer"}
+PALABRAS_HAY: set = {"hay", "hubo", "había", "habrá", "existen"}
+# Primeras palabras post-verbo que indican definición válida con 'ser'
+KEYWORDS_DEFINITORIAS: set = {
+    "entendido", "considerado", "definido", "visto", "la", "el", "un",
+    "una", "aquello", "capacidad", "proceso", "enfermedad", "infección",
+}
+# Participios pasivos que invalidan el patrón con 'ser'
+VERBOS_ACCION_PASIVA: set = {"aislado", "identificado", "creado", "modificado", "estudiado"}
+# Adjetivos/determinantes que indican sujeto incompleto
+PALABRAS_BASURA_INICIO: set = {
+    "otro", "otra", "otros", "otras", "último", "últimos",
+    "primer", "primero", "cada", "alguno", "nuevo", "nueva",
+}
+
 
 class TermExtractor:
     def __init__(self, nlp_model):
@@ -491,185 +520,220 @@ class TermExtractor:
         self.nlp.max_length = 1500000
 
     def limpiar_texto_avanzado(self, texto: str) -> str:
-        # Elimina URLs, correos y normaliza espacios
-        texto = re.sub(r'http[s]?://(?:[a-zA-Z]|[0-9]|[$-_@.&+]|[!*\\(\\),]|(?:%[0-9a-fA-F][0-9a-fA-F]))+', '', texto)
-        texto = re.sub(r'\S+@\S+', '', texto)
-        texto = re.sub(r'\b\d+\b', '', texto)
-        # En lugar de texto.replace('\n', ' '), usamos esto:
-        # Si hay un salto de línea, aseguramos un punto final para separar oraciones.
-        texto = re.sub(r'\n+', '. ', texto)
-        # Luego normalizamos espacios dobles
-        return re.sub(r'\s+', ' ', texto).strip()
+        """
+        Limpia el texto preservando fronteras semánticas.
+
+        MEJORA: Procesa línea a línea. Las líneas en MAYÚSCULAS cortas
+        (títulos/índices) se marcan con [TITULO] para que el filtro de
+        oraciones las descarte sin que spaCy las fusione con el contenido.
+        """
+        lineas = texto.splitlines()
+        resultado: List[str] = []
+        for linea in lineas:
+            linea_strip = linea.strip()
+            if not linea_strip:
+                continue
+            es_titulo = (
+                len(linea_strip) < 65
+                and linea_strip == linea_strip.upper()
+                and not any(c in linea_strip for c in [".", ",", ";", "?", "!"])
+            )
+            resultado.append("[TITULO]." if es_titulo else linea_strip)
+        texto_unido = " ".join(resultado)
+        texto_unido = re.sub(r"https?://\S+", "", texto_unido)
+        texto_unido = re.sub(r"\S+@\S+", "", texto_unido)
+        texto_unido = re.sub(r"\b\d+\b", "", texto_unido)
+        return re.sub(r"\s+", " ", texto_unido).strip()
 
 
+    def _es_oracion_valida(self, sent: spacy.tokens.Span) -> bool:
+        """Descarta oraciones que son títulos, índices o fragmentos sin verbo."""
+        if "[TITULO]" in sent.text:
+            return False
+        tokens_validos = [t for t in sent if not t.is_punct and not t.is_space]
+        if len(tokens_validos) < 5:
+            return False
+        if not any(t.pos_ in {"VERB", "AUX"} for t in tokens_validos):
+            return False
+        tokens_mayus = sum(1 for t in tokens_validos if t.text.isupper() and len(t.text) > 2)
+        if tokens_mayus / len(tokens_validos) > 0.5:
+            return False
+        return True
 
-    def normalizar_nodo(self, texto: str) -> str:
-        # 1. Limpieza inicial y minúsculas
+    def _es_estructura_inversa(self, verbo: spacy.tokens.Token, sent: spacy.tokens.Span) -> bool:
+        """Detecta construcción pasiva refleja 'se denomina/llama/conoce'.
+        En estos casos el término está a la DERECHA del verbo."""
+        if verbo.lemma_ not in VERBOS_INVERSOS:
+            return False
+        return any(t.text.lower() == "se" and t.i < verbo.i for t in sent)
+
+    def _extraer_termino_post_verbo(self, verbo: spacy.tokens.Token, sent: spacy.tokens.Span) -> str:
+        """Extrae el término candidato a la derecha del verbo (estructura inversa)."""
+        doc = verbo.doc
+        inicio = verbo.i + 1
+        if inicio < sent.end and doc[inicio].lemma_ == "como":
+            inicio += 1
+        tokens: List[spacy.tokens.Token] = []
+        for t in doc[inicio:sent.end]:
+            if t.text in {".", ",", ";", ":"} or t.pos_ == "VERB":
+                break
+            tokens.append(t)
+            if len(tokens) >= 5:
+                break
+        return "".join(t.text_with_ws for t in tokens).strip()
+
+    def _validar_nucleo_nominal(self, doc_termino: spacy.tokens.Doc) -> bool:
+        """Valida el término por su núcleo nominal (MEJORA CLAVE).
+        Aplica BLACKLIST_NUCLEOS independientemente de la longitud del término."""
+        sustantivos = [t for t in doc_termino if t.pos_ in {"NOUN", "PROPN"}]
+        if not sustantivos:
+            return False
+        nucleo = sustantivos[-1]
+        return nucleo.lemma_.lower() not in BLACKLIST_NUCLEOS
+
+    def normalizar_termino(self, texto: str) -> str:
+        """Normaliza el texto de un término candidato."""
         t = texto.lower().strip()
-    
-        # 2. Eliminar numeraciones de lista/índice (ej: "Iv) ", "1. ", "a) ")
         t = re.sub(r'^[a-z0-9]{1,3}[\)\.]\s+', '', t)
-    
-        # 3. Eliminar contenido entre corchetes o paréntesis y los símbolos mismos
         t = re.sub(r'\[.*?\]|\(.*?\)', '', t)
         t = re.sub(r'[\[\]\(\)\{\}]', '', t)
-
-        # 4. Eliminar guiones largos, viñetas y puntuación residual
         t = re.sub(r'[—–_•·]', ' ', t)
-        t = re.sub(r'\s+', ' ', t).strip() # Limpiar espacios dobles generados por el paso anterior
-
-
-
-        # 5. NUEVA PODA: Eliminar adverbios terminados en -mente al inicio
-        # Esto limpia: "Normalmente el primer síntoma" -> "primer síntoma"
+        t = re.sub(r'\s+', ' ', t).strip()
         t = re.sub(r'^\w+mente\s+', '', t)
-
-        # 6. Deduplicación de palabras (Corrige "Sífilis la sífilis" entre otras) (Cambiamos orden!!!!!)
+        # Deduplicación de palabras
         palabras = t.split()
-        vistas = []
+        vistas: List[str] = []
         for p in palabras:
-            if p not in vistas: # Si la palabra ya salió, no la vuelvas a poner
+            if p not in vistas:
                 vistas.append(p)
         t = " ".join(vistas)
-
-        # 5. Eliminar palabras "basura" al inicio y al final (Limpieza en cascada)
-        # Añadimos "puesto" y "puesto que"
+        # Eliminar artículos/preposiciones al inicio/final
+        patron_inicio = r'^(que|puesto que|puesto|el|la|los|las|un|una|unos|unas|de|del|y|o|en|con|para|por|a|pero|estas|esta|este)\s+'
+        patron_final  = r'\s+(que|el|la|los|las|un|una|unos|unas|de|del|y|o|en|con|para|por|a|pero|estas|esta|este|se|no)$'
         for _ in range(3):
-            t = re.sub(r'^(que|puesto que|puesto|el|la|los|las|un|una|unos|unas|de|del|y|o|en|con|para|por|a|pero|estas|esta|este)\s+', '', t)
-            t = re.sub(r'\s+(que|el|la|los|las|un|una|unos|unas|de|del|y|o|en|con|para|por|a|pero|estas|esta|este|se|no)$', '', t)
-    
-
-        # 7. Limpieza final de puntuación residual
-        t = re.sub(r'^[:,\.\-\s]+|[:,\.\-\s]+$', '', t) 
-    
+            t = re.sub(patron_inicio, '', t)
+            t = re.sub(patron_final, '', t)
+        t = re.sub(r'^[:,\.\-\s]+|[:,\.\-\s]+$', '', t)
         return t.strip().capitalize()
 
 
 
-    def extraer_a_excel(self, contenidos: List[Dict[str, str]], nombre_archivo_salida: str):
-        todas_las_tripletas = []
-        verbos_definitorios = ["ser", "definir", "conocer", "entender", "identificar", "denominar"]
-        keywords_definitorias = ["entendido", "considerado", "definido", "visto", "la", "el", "un", "una", "aquello", "capacidad", "proceso", "enfermedad", "infección"]
-        verbos_accion_pasiva = ["aislado", "identificado", "creado", "modificado", "estudiado"]
-        verbos_prohibidos = ["haber", "existir", "tener", "parecer"]
-        palabras_prohibidas_hay = ["hay", "hubo", "había", "habrá", "existen"]
-        
+    def extraer_a_excel(
+        self,
+        contenidos: List[Dict[str, str]],
+        nombre_archivo_salida: str,
+        incluir_verbo: bool = False,
+    ) -> None:
+        """
+        Extrae pares término-definición y los exporta a Excel.
+
+        Args:
+            contenidos: Lista de dicts con clave 'texto'.
+            nombre_archivo_salida: Ruta del archivo .xlsx de salida.
+            incluir_verbo: Si True, incluye columna 'Verbo' (por defecto False).
+        """
+        todas_las_tripletas: List[Dict[str, str]] = []
+
         for item in contenidos:
             texto_limpio = self.limpiar_texto_avanzado(item['texto'])
-            chunks = [texto_limpio[i:i + 100000] for i in range(0, len(texto_limpio), 100000)]
-            
+            chunks = [texto_limpio[i:i + 100_000] for i in range(0, len(texto_limpio), 100_000)]
+
             for chunk in chunks:
                 doc = self.nlp(chunk)
                 for sent in doc.sents:
-                    verbo = next((t for t in sent if t.lemma_ in verbos_definitorios), None)
-                    
-                    if not verbo: continue
-                    if verbo.lemma_ in verbos_prohibidos or verbo.text.lower() in palabras_prohibidas_hay:
+
+                    # FILTRO 1: calidad mínima de la oración
+                    if not self._es_oracion_valida(sent):
                         continue
 
+                    # FILTRO 2: verbo definitorio
+                    verbo = next((t for t in sent if t.lemma_ in VERBOS_DEFINITORIOS), None)
+                    if not verbo:
+                        continue
+                    if verbo.lemma_ in VERBOS_PROHIBIDOS or verbo.text.lower() in PALABRAS_HAY:
+                        continue
                     if verbo.i > sent.start:
-                        token_anterior = sent.doc[verbo.i - 1]
-                        if token_anterior.lemma_ in ["poder", "deber", "soler", "querer"]:
-                            continue 
-                
+                        if sent.doc[verbo.i - 1].lemma_ in VERBOS_MODALES:
+                            continue
                     if verbo.dep_ == "aux" or (verbo.head.pos_ == "VERB" and verbo.head.i != verbo.i):
                         continue
 
+                    # Validación adicional para 'ser'
                     if verbo.lemma_ == "ser":
                         post = [t for t in sent if t.i > verbo.i]
-                        if not post or (post[0].pos_ not in ["DET", "NOUN"] and post[0].lemma_ not in keywords_definitorias):
+                        if not post:
                             continue
-                        if post[0].lemma_ in verbos_accion_pasiva:
+                        primera = post[0]
+                        if primera.pos_ not in {"DET", "NOUN"} and primera.lemma_ not in KEYWORDS_DEFINITORIAS:
+                            continue
+                        if primera.lemma_ in VERBOS_ACCION_PASIVA:
                             continue
 
-                    # --- EXTRACCIÓN DEL SUJETO ---
-                    posibles_tokens = [t for t in sent if t.i < verbo.i]
-                    if len(posibles_tokens) > 5: posibles_tokens = posibles_tokens[-5:]
-                    
-                    tokens_sujeto = []
-                    encontro_sustantivo = False
-                
-                    for t in reversed(posibles_tokens):
-                        # CORTE DE TÍTULOS (ÍNDICES): 
-                        # Si el token actual está en MAYÚSCULAS sostenidas y el que sigue no,
-                        # es probable que sea un título de índice.
-                        if t.text.isupper() and len(t.text) > 3:
-                            break
-                        # CORTE RADICAL: Si es verbo o auxiliar (evita "ha", "fue", "está")
-                        if t.pos_ in ["VERB", "AUX"]:
-                            break
-                        # Puntos de corte gramatical
-                        if t.text.lower() in ["que", "puesto", ",", ".", ";", ":", "¿", "¡"]:
-                            break
-                        # Corte de adverbio pegado al verbo
-                        if t.pos_ == "ADV" and t.i == verbo.i - 1:
-                            break
+                    # EXTRACCIÓN con detección de estructura inversa
+                    if self._es_estructura_inversa(verbo, sent):
+                        termino_raw = self._extraer_termino_post_verbo(verbo, sent)
+                        definicion_raw = "".join(t.text_with_ws for t in sent if t.i < verbo.i).strip()
+                    else:
+                        posibles = [t for t in sent if t.i < verbo.i]
+                        if len(posibles) > 5:
+                            posibles = posibles[-5:]
+                        tokens_sujeto: List[spacy.tokens.Token] = []
+                        encontro_sustantivo = False
+                        for t in reversed(posibles):
+                            if t.text.isupper() and len(t.text) > 3:
+                                break
+                            if t.pos_ in {"VERB", "AUX"}:
+                                break
+                            if t.text.lower() in {"que", "puesto", ",", ".", ";", ":", "¿", "¡"}:
+                                break
+                            if t.pos_ == "ADV" and t.i == verbo.i - 1:
+                                break
+                            if t.pos_ in {"NOUN", "PROPN"}:
+                                encontro_sustantivo = True
+                            tokens_sujeto.insert(0, t)
+                        if not encontro_sustantivo:
+                            continue
+                        termino_raw = "".join(t.text_with_ws for t in tokens_sujeto)
+                        definicion_raw = "".join(t.text_with_ws for t in sent if t.i > verbo.i).strip()
 
-                        if t.pos_ in ["NOUN", "PROPN"]:
-                            encontro_sustantivo = True
-                    
-                        tokens_sujeto.insert(0, t)
-
-                    if not encontro_sustantivo: 
+                    # NORMALIZACIÓN Y VALIDACIÓN DEL TÉRMINO
+                    termino = self.normalizar_termino(termino_raw)
+                    if not termino or len(termino.split()) > 5:
                         continue
 
-                    # --- NORMALIZACIÓN Y VALIDACIÓN ---
-                    termino = self.normalizar_nodo("".join([t.text_with_ws for t in tokens_sujeto]))
-                    
-                    # Filtro de longitud
-                    if not termino or len(termino.split()) > 4: 
-                        continue
-
-                    # VALIDACIÓN POS Y CONCEPTUAL
                     doc_termino = self.nlp(termino)
-                    if len(doc_termino) > 0:
-                        # 1. Filtro de adjetivos basura al inicio
-                        palabras_basura = ["otro", "otra", "otros", "otras", "último", "últimos", "primer", "primero", "cada", "alguno", "nuevo", "nueva"]
-                        if doc_termino[0].lemma_.lower() in palabras_basura:
-                            continue
+                    if doc_termino and doc_termino[0].lemma_.lower() in PALABRAS_BASURA_INICIO:
+                        continue
+                    if any(t.lemma_ in {"haber", "ser", "estar", "hacer"} for t in doc_termino):
+                        continue
+                    if not self._validar_nucleo_nominal(doc_termino):
+                        continue
 
-                        # 2. Bloqueo de verbos internos
-                        if any(t.lemma_ in ["haber", "ser", "estar", "hacer"] for t in doc_termino):
-                            continue
-
-                        # 3. Blacklist de conceptos genéricos (solo si es la única palabra)
-                        blacklist_conceptos = ["síntoma", "ejemplo", "caso", "vía", "transmisión", "año", "manera", "forma"]
-                        if len(doc_termino) == 1 and doc_termino[0].lemma_.lower() in blacklist_conceptos:
-                            continue
-
-                    # --- EXTRACCIÓN DE DEFINICIÓN ---
-                    tokens_post = [t for t in sent if t.i > verbo.i]
-                    definicion_raw = "".join([t.text_with_ws for t in tokens_post]).strip()
-                    
+                    # LIMPIEZA DE DEFINICIÓN
                     definicion = re.sub(r'^(como|es|son)\s+', '', definicion_raw, flags=re.IGNORECASE)
                     definicion = re.sub(r'^[:,\s]+', '', definicion).split(". ")[0]
 
-                    if len(definicion) > 15:
-                        todas_las_tripletas.append({
-                            'Término': termino,
-                            'Verbo': verbo.lemma_.lower(),
-                            'Definiciones': definicion.capitalize()
-                        })
+                    # Umbral mejorado: longitud + sustantivo presente
+                    doc_def = self.nlp(definicion)
+                    tiene_sust = any(t.pos_ in {"NOUN", "PROPN"} for t in doc_def)
+                    if len(definicion) < 30 or not tiene_sust:
+                        continue
 
-        # --- GUARDADO ---
-        if todas_las_tripletas:
-            # Crear el DataFrame con todas las columnas inicialmente
-            df_final = pd.DataFrame(todas_las_tripletas)
-            
-            # 1. Eliminar duplicados basados en el Término
-            df_final = df_final.drop_duplicates(subset=['Término'])
-            
-            # 2. SELECCIÓN DE COLUMNAS: Solo Término y Definición
-            df_final = df_final[['Término', 'Definiciones']]
-            
-            # 3. Exportar a Excel
-            df_final.to_excel(nombre_archivo_salida, index=False)
-            print(f"Excel generado con {len(df_final)} términos y sus definiciones.")
-        else:
-            print("⚠ No se encontraron términos para exportar.")
-        
+                    todas_las_tripletas.append({
+                        'Término':      termino,
+                        'Verbo':        verbo.lemma_.lower(),
+                        'Definiciones': definicion.capitalize(),
+                    })
 
+        # GUARDADO
+        if not todas_las_tripletas:
+            print("No se encontraron términos para exportar.")
+            return
 
+        df = pd.DataFrame(todas_las_tripletas).drop_duplicates(subset=['Término'])
+        columnas = ['Término', 'Verbo', 'Definiciones'] if incluir_verbo else ['Término', 'Definiciones']
+        df[columnas].to_excel(nombre_archivo_salida, index=False)
+        print(f"Excel generado con {len(df)} términos: '{nombre_archivo_salida}'")
 
 
 
@@ -1775,4 +1839,5 @@ if __name__ == "__main__":
         print(f"Error al cargar el buscador: {e}")
 
     print("\nSistema cerrado.")
+
 
