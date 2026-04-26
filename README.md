@@ -27,7 +27,7 @@ Asegúrate de tener instalado Python 3.8 o superior. Se recomienda el uso de un 
 
 1.  **Clona el repositorio:**
     ```bash
-    git clone https://github.com/usuario/diccionario-inverso.git
+    git clone https://github.com/usuario/diccionario-inverso.git](https://github.com/Ismael9993/Diccionario_Inverso.git
     cd diccionario-inverso
     ```
 
