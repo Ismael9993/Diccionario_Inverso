@@ -45,13 +45,15 @@ Asegúrate de tener instalado Python 3.8 o superior. Se recomienda el uso de un 
     Crea un archivo `config.json` en la raíz con el siguiente formato:
     ```json
     {
+      "data_dir": "data",
       "base_url": "http://www.geco.unam.mx/geco3/",
       "anon_user": "anonymous_username",
       "anon_pass": "anonymous_password",
       "app_name": "your_app_name",
-      "app_password": "your_app_password",
+      "app_password": "your_app_password"
     }
     ```
+    `data_dir` puede ser una ruta relativa a la raíz del proyecto o una ruta absoluta.
 
 ## Uso
 
@@ -74,5 +76,3 @@ Asegúrate de tener instalado Python 3.8 o superior. Se recomienda el uso de un 
 *   `templates/`: Plantillas HTML (Jinja2).
 *   `data/`: Directorio donde se almacenan los diccionarios y grafos generados.⚠️Importante: La carpeta data/ (que contiene los grafos y diccionarios de muestra) no está en este repositorio debido a su peso.Se creará al iniciar el servidor y crear el primer diccionario.
 *   `geco3_client/`: Cliente para la comunicación con GECO3.El cliente de GECO3 se encuentra incluido en el repositorio como una carpeta local (geco3_client/). No es necesario instalarlo vía pip, pero asegúrate de que la carpeta esté presente en la raíz del proyecto para que las importaciones funcionen correctamente.
-
-

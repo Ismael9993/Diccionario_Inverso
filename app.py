@@ -7,6 +7,7 @@ import networkx as nx
 import threading
 from collections import Counter
 from Dic_Inv import (
+    CONFIG,
     TextProcessor,
     GraphBuilder,
     ReverseDict,
@@ -58,10 +59,7 @@ DICCIONARIOS_PROTEGIDOS = [
     "03_Diccionario_de_Ingeniería_Mécanica_Automotriz"
 ]
 
-url_prefix = ''
-with open('config.json', 'r') as f:
-    config = json.load(f)
-    url_prefix = config.get('url_prefix', '')
+url_prefix = CONFIG.get('url_prefix', '')
 
 if url_prefix:
     static_url_path = '/' + url_prefix + '/static'

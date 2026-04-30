@@ -1,4 +1,5 @@
 {
+    "data_dir": "data",
     "base_url": "http://www.geco.unam.mx/geco3/",
     "anon_user": "anonymous_username",
     "anon_pass": "anonymous_password",

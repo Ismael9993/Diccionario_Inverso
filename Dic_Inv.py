@@ -19,27 +19,23 @@ from geco3_client.client import GECO3Client
 
 
 # --- 1. CONFIGURACIÓN BASE DE RUTAS ---
-BASE_DIR = os.getcwd()
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+CONFIG_PATH = os.path.join(BASE_DIR, "config.json")
+DEFAULT_DATA_DIR = os.path.join(BASE_DIR, "data")
 
-# Directorio principal de datos (Excel de entrada, etc.)
-DATA_DIR = os.path.join(BASE_DIR, "data")
 
-# Directorio maestro de diccionarios (Aquí vivirán las carpetas de cada proyecto)
-GRAPH_DIR = os.path.join(DATA_DIR, "grafos")
-
-# Aseguramos que existan las carpetas base
-os.makedirs(DATA_DIR, exist_ok=True)
-os.makedirs(GRAPH_DIR, exist_ok=True)
-
+def _resolve_data_dir(raw_data_dir: Optional[str]) -> str:
+    """Resuelve data_dir relativo al proyecto y devuelve una ruta absoluta."""
+    if not raw_data_dir:
+        return DEFAULT_DATA_DIR
+    if os.path.isabs(raw_data_dir):
+        return raw_data_dir
+    return os.path.abspath(os.path.join(BASE_DIR, raw_data_dir))
 
 
 # --------------------------------------------
 # Configuración geco3_client
 # --------------------------------------------
-
-
-
-
 # CONFIGURACIÓN BASE (desde variables de entorno o config.json)
 def load_config() -> Dict[str, Any]:
     """
@@ -49,9 +45,9 @@ def load_config() -> Dict[str, Any]:
     config: Dict[str, Any] = {}
 
     # Intentar cargar desde archivo config.json
-    if os.path.exists("config.json"):
+    if os.path.exists(CONFIG_PATH):
         try:
-            with open("config.json", "r", encoding="utf-8") as f:
+            with open(CONFIG_PATH, "r", encoding="utf-8") as f:
                 config = json.load(f)
         except Exception as e:
             print(f"Advertencia: No se pudo cargar config.json: {e}")
@@ -63,11 +59,17 @@ def load_config() -> Dict[str, Any]:
     config["app_name"] = os.getenv("GECO_APP_NAME", config.get("app_name", None))
     config["app_password"] = os.getenv("GECO_APP_PASSWORD", config.get("app_password", None))
     config["user_token"] = os.getenv("GECO_USER_TOKEN", config.get("user_token", None))
-    config["data_dir"] = os.getenv("DATA_DIR", DATA_DIR)
+    config["data_dir"] = _resolve_data_dir(os.getenv("DATA_DIR", config.get("data_dir")))
     return config
 
 # Cargar configuración
 CONFIG = load_config()
+DATA_DIR = CONFIG["data_dir"]
+GRAPH_DIR = os.path.join(DATA_DIR, "grafos")
+
+# Aseguramos que existan las carpetas base
+os.makedirs(DATA_DIR, exist_ok=True)
+os.makedirs(GRAPH_DIR, exist_ok=True)
 
 
 def get_client(token=None, is_encrypted=True):
@@ -1839,5 +1841,4 @@ if __name__ == "__main__":
         print(f"Error al cargar el buscador: {e}")
 
     print("\nSistema cerrado.")
-
 
