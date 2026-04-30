@@ -565,7 +565,7 @@ def api_descargar(nombre_dic, archivo):
         usuario_actual = session['geco3user'].get('name', 'Anónimo')
         
     permitido = False
-    if owner == "Anónimo" and usuario_actual == "Anónimo":
+    if owner == "Anónimo":
         permitido = True
     elif owner == usuario_actual:
         permitido = True
