@@ -81,19 +81,16 @@ def listar_diccionarios():
         
         with open(index_path, "r", encoding="utf-8") as f:
             index = json.load(f)
-        
-        # Agregar información adicional de cada diccionario
-        resultado = []
-        for dic in index:
-            nombre = dic["nombre"]
-            dic_obj = get_diccionario(nombre)
-            if dic_obj:
-                resultado.append({
-                    "nombre": nombre,
-                    "nodos": len(dic_obj["grafo"].nodes()),
-                    "aristas": len(dic_obj["grafo"].edges())
-                })
-        
+
+        resultado = [
+            {
+                "nombre": dic["nombre"],
+                "nodos": dic.get("n_nodos"),
+                "aristas": dic.get("n_tripletas"),
+            }
+            for dic in index
+        ]
+
         return jsonify({"ok": True, "diccionarios": resultado})
     
     except Exception as e:
