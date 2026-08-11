@@ -186,7 +186,11 @@ class GECO3Client:
         metatados_dict = {}
         for metadato in metadatos:
             metatados_dict[metadato[0]] = metadato[1]
-        for id_doc, titulo_doc, metadatos_doc in tabla:
+        for row in tabla:
+            # GECO 4 appends the POS-tagging status as a fourth item.  Older
+            # GECO deployments return the original three-item row, so keep the
+            # client compatible with both response shapes.
+            id_doc, titulo_doc, metadatos_doc = row[:3]
             metadata = {}
             for id_metadato, valor_metadato in metadatos_doc:
                 nombre_metadato = metatados_dict[id_metadato]
@@ -194,7 +198,8 @@ class GECO3Client:
             doc = {
                 "id": id_doc,
                 "name": titulo_doc,
-                "metadata": metadata
+                "metadata": metadata,
+                "pos_tagging_status": row[3] if len(row) > 3 else None,
             }
             docs.append(doc)
         return docs
