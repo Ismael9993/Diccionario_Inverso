@@ -21,7 +21,7 @@ COPY requirements.txt ./
 # text2graphapi loads es_core_news_sm by name while building association graphs.
 RUN pip install --upgrade pip \
     && pip install -r requirements.txt \
-    && python -m spacy download es_core_news_sm \
+    && pip install es_core_news_sm==3.8.0 \
     && python -m spacy download es_core_news_lg \
     && python -m nltk.downloader -d "$NLTK_DATA" punkt stopwords wordnet \
     && apt-get purge -y --auto-remove build-essential
