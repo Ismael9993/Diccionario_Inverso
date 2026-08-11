@@ -72,7 +72,7 @@ os.makedirs(DATA_DIR, exist_ok=True)
 os.makedirs(GRAPH_DIR, exist_ok=True)
 
 
-def get_client(token=None, is_encrypted=True):
+def get_client(token=None, is_encrypted=True, strict=False):
     """
     Factory function to create an authenticated GECO3 client.
 

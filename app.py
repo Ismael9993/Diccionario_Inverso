@@ -1,4 +1,4 @@
-from flask import Flask, render_template, jsonify, request, session, redirect, url_for, send_from_directory
+from flask import Flask, render_template, jsonify, request, session, redirect, url_for, send_from_directory, flash
 from werkzeug.middleware.proxy_fix import ProxyFix
 import os
 import json
@@ -120,21 +120,27 @@ def auth():
     Receive authentication redirect from GECO.
     GECO redirects here with query parameters:
     - token: User's session token (XOR encrypted, Base64 encoded)
-    - name: User's display name
     - corpus: (Optional) Pre-selected corpus ID
     """
-    token = request.args.get('token')
-    name = request.args.get('name')
+    token = (request.args.get('token') or '').strip()
     corpus = request.args.get('corpus')
 
-    # Handle space encoding in URL parameters
-    if token:
-        token = token.replace(" ", "+")
+    if not token:
+        session.pop('geco3user', None)
+        return redirect(url_for('index'))
+
+    try:
+        client = get_client(token=token, is_encrypted=True, strict=True)
+        username = client.user_info['username']
+    except Exception:
+        session.pop('geco3user', None)
+        flash('Token inválido', 'danger')
+        return redirect(url_for('index'))
 
     session['geco3user'] = {
         'token': token,
-        'name': name,
-        'corpus': corpus
+        'name': username,
+        'corpus': corpus or None,
     }
     session.permanent = True
 

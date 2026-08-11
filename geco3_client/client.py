@@ -11,6 +11,7 @@ class GECO3Client:
     DISPLAY_NAME_ANONIMO = "Usuario Anónimo"
     PATH_LOGIN = "proyectos/apidocs/get-token"
     PATH_LOGIN_APP = "proyectos/apidocs/get-token-app"
+    PATH_WHOAMI = 'proyectos/apidocs/whoami'
     PATH_CORPUS_PUBLICOS = 'proyectos/apidocs/corpus/'
     PATH_CORPUS_PRIVADOS = 'proyectos/apidocs/corpus/colabora'
     PATH_CORPUS_APP = 'proyectos/apidocs/apps/{app_name}/proyectos'
@@ -41,9 +42,6 @@ class GECO3Client:
         if self.app_name:
             print(f"Login app {self.app_name}")
             self.login_app()
-
-    def set_user_name(self, name):
-        self.user_info["name"] = name
 
     def is_app_logged(self):
         return self.app_token is not None
@@ -126,24 +124,14 @@ class GECO3Client:
             self.init_user(is_anon)
 
     def init_user(self, is_anon):
-        """ La idea de esto es que se mande llamar un endpoint que nos
-        de la informacion del usuario (nombre), y al mismo tiempo
-        estaremos confirmando que la token sea válida
-        
-        Por el momento no hay un endpoint para obtener info del
-        usuario así que asumiremos que la token es válida siempre
-        (si no lo es lanzaremos una excepción cuando se intente
-        acceder a alguno de los otros endpoints)
-
-        Por el momento el nombre del usuario se debe establecer
-        aparte usando el método set_user_name()
-        """
-
-        name = None
-        if is_anon:
-            name = self.DISPLAY_NAME_ANONIMO
-
-        self.user_info = {"name": name, "is_anon": is_anon}
+        """Validate the token and obtain its canonical identity from GECO."""
+        resp = self.call_endpoint(self.PATH_WHOAMI, method="get",
+                                  headers=self._get_headers())
+        username = resp.json().get("username")
+        if not username:
+            raise Exception("GECO3 no devolvió el usuario autenticado")
+        self.user_info = {"name": username, "username": username,
+                          "is_anon": is_anon}
         return True
 
     def corpus_app(self):
