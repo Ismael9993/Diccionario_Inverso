@@ -59,7 +59,7 @@ DICCIONARIOS_PROTEGIDOS = [
     "03_Diccionario_de_Ingeniería_Mécanica_Automotriz"
 ]
 
-url_prefix = CONFIG.get('url_prefix', '')
+url_prefix = CONFIG.get('url_prefix', '').strip('/')
 
 if url_prefix:
     static_url_path = '/' + url_prefix + '/static'
@@ -86,7 +86,9 @@ if url_prefix:
 app.secret_key = os.environ.get('FLASK_SECRET_KEY', secrets.token_hex(32))
 app.config['SESSION_COOKIE_SECURE'] = os.environ.get('FLASK_ENV') == 'production'
 app.config['SESSION_COOKIE_HTTPONLY'] = True
-app.config['SESSION_COOKIE_PATH'] = '/'  # Avoid path issues behind reverse proxy
+# Restrict the cookie to this app's public path, keeping it isolated from GECO
+# and the other applications sharing the same domain.
+app.config['SESSION_COOKIE_PATH'] = '/' + url_prefix if url_prefix else '/'
 app.config['PERMANENT_SESSION_LIFETIME'] = 1800  # 30 minutes
 
 
@@ -343,6 +345,14 @@ def api_process():
     if not corpus_id or not doc_ids or not dic_name:
         return jsonify({"ok": False, "error": "Faltan corpus_id, doc_ids o dic_name"}), 400
 
+    # A background thread has no Flask request/session context.  Preserve the
+    # encrypted GECO SSO token while handling this request so the worker uses
+    # the authenticated user rather than falling back to the anonymous account.
+    token = _get_session_token()
+    if not token:
+        return jsonify({"ok": False, "error": "Inicia sesión en GECO para crear un diccionario."}), 401
+    nombre_user = session['geco3user'].get('name', 'Anónimo')
+
     # Reiniciar el estado para el nuevo proceso
     state["status"] = "processing"
     state["message"] = "Iniciando pipeline..."
@@ -354,7 +364,7 @@ def api_process():
 
     def run_pipeline():
         try:
-            client = get_client()
+            client = get_client(token=token, is_encrypted=True, strict=True)
             # PASAMOS mi_callback al argumento status_callback
             exito, msg = ejecutar_pipeline_completo(
                 nombre_dic=dic_name,
@@ -362,6 +372,7 @@ def api_process():
                 doc_ids=doc_ids,
                 client=client,
                 nlp_model=nlp,
+                nombre_user=nombre_user,
                 status_callback=mi_callback  # <--- ESTO ES LO QUE CONECTA TODO
             )
             if exito:
@@ -586,4 +597,4 @@ def api_descargar(nombre_dic, archivo):
     return send_from_directory(dic_dir, archivo, as_attachment=True)
 
 if __name__ == "__main__":
-    app.run(debug=True, host="0.0.0.0", port=5000)
+    app.run(debug=False, host="0.0.0.0", port=int(os.environ.get("PORT", "5000")))
