@@ -1,0 +1,10 @@
+.git
+.claude
+.codex
+__pycache__
+*.py[cod]
+config.json
+data
+.venv
+venv
+.env
