@@ -11,8 +11,7 @@ let lastFilterSelection = {};
 let sessionCorpusId = null;
 // Keep API requests under the mounted application path without producing a
 // double slash when the public URL ends in / (as /diccionario/ does).
-let locationPathName = location.pathname === "/" ? "" : location.pathname.replace(/\/$/, "");
-let monitorInterval = null;
+let locationPathName = location.pathname === "/" ? "" : location.pathname.replace(/\/$/, ""); let monitorInterval = null;
 let lastCreatedDic = null; // Guardar el nombre del último diccionario creado
 
 // Selectores UI (accesibles globalmente)
@@ -329,7 +328,7 @@ document.addEventListener("DOMContentLoaded", function () {
       // Añadimos un timestamp para evitar cache del navegador
       const res = await fetch(locationPathName + "/api/diccionarios?t=" + new Date().getTime()).then(r => r.json());
       console.log("Respuesta de /api/diccionarios:", res);
-      
+
       if (res.ok && res.data) {
         // Limpiar y rellenar el select de diccionarios
         if (diccionarioSelect) {
@@ -526,7 +525,7 @@ document.addEventListener("DOMContentLoaded", function () {
 
     // Extraer aristas conectadas, ordenarlas por peso
     const connectedEdges = nodeObj.connectedEdges().sort((a, b) => b.data('weight') - a.data('weight'));
-    const topEdges = connectedEdges.slice(0, 10);
+    const topEdges = connectedEdges.slice(0, 50);
 
     topEdges.forEach(edge => {
       // Determinar cuál es el nodo vecino en esta arista
@@ -705,9 +704,9 @@ document.addEventListener("DOMContentLoaded", function () {
                 // Intentamos seleccionar por nombre normalizado (preferido en el backend) o original
                 diccionarioSelect.value = nombreNormalizado;
                 if (!diccionarioSelect.value) diccionarioSelect.value = nombreUsuario;
-                
+
                 if (!diccionarioSelect.value) {
-                    console.warn("No se pudo seleccionar automáticamente en el dropdown. Intentando carga forzada.");
+                  console.warn("No se pudo seleccionar automáticamente en el dropdown. Intentando carga forzada.");
                 }
               }
 
@@ -869,7 +868,26 @@ document.addEventListener("DOMContentLoaded", function () {
           res.results.forEach(r => {
             const li = document.createElement("li");
             li.className = "search-result-item";
-            li.innerHTML = `<span class="data-font fw-bold">${r.palabra.replace(/_/g, " ")}</span>`;
+            li.dataset.id = r.termino;
+            li.innerHTML = `<div class="d-flex justify-content-between align-items-center w-100">
+              <span class="data-font fw-bold">${r.termino.replace(/_/g, " ")}</span>
+              <span class="badge bg-secondary rounded-pill ms-2">${r.score.toFixed(3)}</span>
+            </div>`;
+
+            // Evento para enfocar y aislar visualmente el nodo al hacer clic en el término candidato
+            li.addEventListener("click", () => {
+              if (typeof cy === "undefined" || !cy) return;
+              const termNormalizado = r.termino.replace(/ /g, "_").toLowerCase();
+              const foundNode = cy.nodes().filter(n => n.id().toLowerCase() === termNormalizado || n.id().toLowerCase().replace(/_/g, " ") === r.termino.toLowerCase())[0];
+              if (foundNode) {
+                showNodeDetails(foundNode.id(), foundNode);
+                aplicarModoAislamiento(foundNode.id());
+                if (btnFocusNode) btnFocusNode.click();
+              } else {
+                alert(`El término "${r.termino}" no se encuentra en el grafo actual.`);
+              }
+            });
+
             resultsList.appendChild(li);
           });
         } else {
@@ -1222,3 +1240,4 @@ document.addEventListener("DOMContentLoaded", function () {
   });
 
 });
+

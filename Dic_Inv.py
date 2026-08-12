@@ -142,9 +142,8 @@ import spacy
 import sys
 import subprocess
 
-def asegurar_modelo_spacy(nombre_modelo=None):
+def asegurar_modelo_spacy(nombre_modelo=None):    
     """Verifica si el modelo de spaCy está instalado, si no, lo descarga."""
-    nombre_modelo = nombre_modelo or os.getenv("SPACY_MODEL", "es_core_news_lg")
     if not spacy.util.is_package(nombre_modelo):
         print(f"Instalando modelo {nombre_modelo} automáticamente...")
         subprocess.check_call([sys.executable, "-m", "spacy", "download", nombre_modelo])
@@ -767,8 +766,23 @@ class TermExtractor:
             print("No se encontraron términos para exportar.")
             return
 
-        df = pd.DataFrame(todas_las_tripletas).drop_duplicates(subset=['Término'])
-        columnas = ['Término', 'Verbo', 'Definiciones'] if incluir_verbo else ['Término', 'Definiciones']
+        df_raw = pd.DataFrame(todas_las_tripletas)
+        if not df_raw.empty:
+            frecuencias = df_raw["Término"].value_counts().to_dict()
+            
+            # Guardar frecuencias de términos originales en un archivo JSON local temporal
+            ruta_frecuencias = os.path.join(os.path.dirname(nombre_archivo_salida), "frecuencias.json")
+            try:
+                with open(ruta_frecuencias, "w", encoding="utf-8") as f_freq:
+                    json.dump(frecuencias, f_freq, ensure_ascii=False, indent=2)
+            except Exception as e:
+                print(f"Advertencia: No se pudo guardar frecuencias.json: {e}")
+                
+            df = df_raw.drop_duplicates(subset=["Término"])
+        else:
+            df = df_raw
+
+        columnas = ["Término", "Verbo", "Definiciones"] if incluir_verbo else ["Término", "Definiciones"]
         df[columnas].to_excel(nombre_archivo_salida, index=False)
         print(f"Excel generado con {len(df)} términos: '{nombre_archivo_salida}'")
 
@@ -1313,8 +1327,22 @@ class GraphBuilder:
 
 
 
-    def construir_grafo(self, texto_final, window_size=10):
-        """Usa las rutas parametrizadas en el __init__."""
+    def construir_grafo(
+        self,
+        texto_final: str,
+        window_size: int = 10,
+        frecuencias_nodos: Optional[Dict[str, int]] = None,
+    ) -> nx.Graph:
+        """Construye el grafo de coocurrencia a partir del texto final.
+
+        Args:
+            texto_final: Texto del corpus lematizado y limpio.
+            window_size: Tamaño de la ventana de coocurrencia.
+            frecuencias_nodos: Diccionario con la frecuencia absoluta de los términos.
+
+        Returns:
+            Grafo de NetworkX construido.
+        """
         input_text_docs = [{"id": 1, "doc": texto_final}]
 
         to_cooccurrence = Cooccurrence(
@@ -1324,6 +1352,13 @@ class GraphBuilder:
 
         output_text_graphs = to_cooccurrence.transform(input_text_docs)
         self.grafo = output_text_graphs[0]['graph']
+
+        # Asignar atributos de frecuencia a los nodos si se proporcionan
+        if frecuencias_nodos:
+            for n in self.grafo.nodes():
+                freq = frecuencias_nodos.get(str(n).lower(), 1)
+                self.grafo.nodes[n]['frequency'] = freq
+                self.grafo.nodes[n]['frecuencia'] = freq
         
         # Eliminar todas las aristas cuyo weight sea igual a 1 (conexiones únicas) para limpiar ruido
         aristas_a_eliminar = [(u, v) for u, v, d in self.grafo.edges(data=True) if d.get('weight', 0) == 1]
@@ -1402,8 +1437,18 @@ class GraphBuilder:
         print(f"Se removieron {nodos_removidos} nodos del grafo.")
         return grafo
 
-    def construir_grafos_galex(self):
-        """Lee el JSON maestro para construir los grafos maestros A y F."""
+    def construir_grafos_galex(
+        self,
+        vocab_freq: Optional[Dict[str, int]] = None
+    ) -> tuple[nx.Graph, nx.Graph]:
+        """Lee el JSON maestro para construir los grafos maestros A (Asociación) y F (Frecuencia).
+
+        Args:
+            vocab_freq: Diccionario con la frecuencia de los términos lematizados.
+
+        Returns:
+            Tupla (grafo_asociacion, grafo_frecuencia) de NetworkX.
+        """
         ruta_json_normas = os.path.join(self.project_dir, 'normas_asociacion.json')
         
         with open(ruta_json_normas, "r", encoding="utf-8") as f:
@@ -1417,6 +1462,17 @@ class GraphBuilder:
                 # Lógica Galex (Celda 2)
                 grafo_f.add_edge(estimulo, resp['Respuesta'], weight=float(1/resp['Frecuencia']))
                 grafo_a.add_edge(estimulo, resp['Respuesta'], weight=float(1 - resp['Asociación']))
+
+        # Asignar frecuencias a los nodos de grafo_a y grafo_f si se proporcionan
+        frecuencias_a_usar = vocab_freq if vocab_freq is not None else self.vocab_freq
+        for n in grafo_a.nodes():
+            freq = frecuencias_a_usar.get(str(n).lower(), 1)
+            grafo_a.nodes[n]['frequency'] = freq
+            grafo_a.nodes[n]['frecuencia'] = freq
+        for n in grafo_f.nodes():
+            freq = frecuencias_a_usar.get(str(n).lower(), 1)
+            grafo_f.nodes[n]['frequency'] = freq
+            grafo_f.nodes[n]['frecuencia'] = freq
 
         # Guardado de grafos maestros del proyecto
         nx.write_gexf(grafo_a, os.path.join(self.project_dir, "grafo_asociacion.gexf"))
@@ -1453,16 +1509,27 @@ class ReverseDict:
         return [token.lemma_ for token in doc if token.is_alpha and not token.is_stop]
 
 
-    def buscar(self, query, n_sugerencias=20):
-        """
-        Motor de búsqueda mejorado con Activación Propagada y 
-        re-ranking por coincidencia múltiple.
+    def buscar(
+        self,
+        query: str,
+        n_sugerencias: int = 20,
+        retornar_scores: bool = False
+    ) -> List[Any]:
+        """Busca sugerencias para un concepto o definición utilizando activación propagada.
+
+        Args:
+            query: Definición o concepto ingresado por el usuario.
+            n_sugerencias: Cantidad máxima de sugerencias a retornar.
+            retornar_scores: Si True, retorna tuplas (término, score) en lugar de strings.
+
+        Returns:
+            Lista de sugerencias de términos.
         """
         # 1. Normalización y filtrado de la consulta
         lemas_consulta = [p for p in self.limpiar_y_lematizar(query) if p in self.grafo.nodes()]
     
         if not lemas_consulta:
-            return None
+            return []
 
         # Diccionario para acumular el score de cada candidato
         # { nodo_candidato: { 'score': float, 'coincidencias': int } }
@@ -1527,6 +1594,8 @@ class ReverseDict:
 
         # 5. Ordenar y retornar los mejores resultados
         resultados = sorted(ranking_refinado, key=itemgetter(1), reverse=True)
+        if retornar_scores:
+            return [(res[0], res[1]) for res in resultados[:n_sugerencias]]
         return [res[0] for res in resultados[:n_sugerencias]]
 
 # --------------------------------------------
@@ -1580,9 +1649,18 @@ def guardar_diccionario(nombre_diccionario, grafo, base_de_datos, builder, owner
     print(f"Diccionario '{nombre_diccionario}' registrado con éxito.")
 
 
-def cargar_diccionario(nombre_diccionario, nlp_model):
-    """
-    Carga el grafo y datos semánticos desde la subcarpeta del proyecto.
+def cargar_diccionario(
+    nombre_diccionario: str,
+    nlp_model: Any
+) -> tuple[Optional[nx.Graph], Optional[List[Dict[str, Any]]], Optional[TextProcessor], Optional[GraphBuilder]]:
+    """Carga el grafo y los datos semánticos desde la subcarpeta del proyecto.
+
+    Args:
+        nombre_diccionario: Nombre del diccionario a cargar.
+        nlp_model: Modelo de spaCy cargado.
+
+    Returns:
+        Tupla (grafo, base_de_datos, processor, builder) o (None, None, None, None) si falla.
     """
     index_path = os.path.join(GRAPH_DIR, "diccionarios_index.json")
     if not os.path.exists(index_path):
@@ -1613,11 +1691,14 @@ def cargar_diccionario(nombre_diccionario, nlp_model):
     if os.path.exists(ruta_grafo_asoc) and dic_entry.get("grafo_asociacion"):
         try:
             G = nx.read_gexf(ruta_grafo_asoc)
-            # Asegurar que los nodos tengan metadata frequency para que el frontend no falle
+            # Asegurar que los nodos tengan metadata de frecuencia (en inglés y español)
             vocab_freq = data.get("vocab_freq", {})
             for n in G.nodes():
+                freq = vocab_freq.get(n, 1)
                 if 'frequency' not in G.nodes[n]:
-                    G.nodes[n]['frequency'] = vocab_freq.get(n, 1)
+                    G.nodes[n]['frequency'] = freq
+                if 'frecuencia' not in G.nodes[n]:
+                    G.nodes[n]['frecuencia'] = freq
         except Exception as e:
             print(f"⚠️ Error cargando {ruta_grafo_asoc}: {e}. Cayendo al JSON.")
             G = nx.Graph()
@@ -1715,9 +1796,28 @@ def finalizar_y_registrar_diccionario(processor, builder, nombre_usuario="Anóni
 #   Función para ejecutar el pipeline completo - app.py
 # --------------------------------------------
 
-def ejecutar_pipeline_completo(nombre_dic, corpus_id, doc_ids, client, nlp_model, nombre_user="Anónimo", status_callback=None):
-    """
-    Orquestador principal con reporte de progreso en tiempo real.
+def ejecutar_pipeline_completo(
+    nombre_dic: str,
+    corpus_id: int,
+    doc_ids: List[int],
+    client: Any,
+    nlp_model: Any,
+    nombre_user: str = "Anónimo",
+    status_callback: Optional[Any] = None
+) -> tuple[bool, str]:
+    """Orquestador principal con reporte de progreso en tiempo real.
+
+    Args:
+        nombre_dic: Nombre del diccionario a crear.
+        corpus_id: ID del corpus en GECO.
+        doc_ids: IDs de los documentos a procesar.
+        client: Cliente de GECO3 autenticado.
+        nlp_model: Modelo de spaCy cargado.
+        nombre_user: Nombre del usuario creador.
+        status_callback: Callback para enviar logs de progreso en tiempo real.
+
+    Returns:
+        Tupla (éxito, mensaje_de_estado).
     """
     # Esta función interna envía el mensaje a la terminal Y a la web
     def reportar(msg):
@@ -1780,12 +1880,33 @@ def ejecutar_pipeline_completo(nombre_dic, corpus_id, doc_ids, client, nlp_model
         ruta_json_corpus = os.path.join(processor.project_dir, "datos_corpus.json")
         texto_grafo = builder.limpiar_y_preparar_texto(ruta_json_corpus)
         
+        # Cargar frecuencias del JSON temporal y traducirlas a lemas de nodos
+        frecuencias_nodos: Dict[str, int] = {}
+        ruta_frecuencias = os.path.join(project_dir, "frecuencias.json")
+        if os.path.exists(ruta_frecuencias):
+            try:
+                with open(ruta_frecuencias, "r", encoding="utf-8") as f_freq:
+                    frecuencias_raw = json.load(f_freq)
+                for term_orig, freq in frecuencias_raw.items():
+                    term_lema = processor.terminos_dict.get(term_orig)
+                    if term_lema:
+                        nodo_id = str(term_lema).strip().replace(" ", "_").lower()
+                        frecuencias_nodos[nodo_id] = frecuencias_nodos.get(nodo_id, 0) + int(freq)
+                    else:
+                        nodo_id = str(term_orig).strip().replace(" ", "_").lower()
+                        frecuencias_nodos[nodo_id] = frecuencias_nodos.get(nodo_id, 0) + int(freq)
+            except Exception as e:
+                reportar(f"⚠️ Advertencia al procesar frecuencias.json: {e}")
+
+        # Poblar builder.vocab_freq con el mapeo traducido
+        builder.vocab_freq.update(frecuencias_nodos)
+
         reportar("🕸️ Construyendo grafo de coocurrencia y normas de asociación...")
-        builder.construir_grafo(texto_grafo)
+        builder.construir_grafo(texto_grafo, frecuencias_nodos=frecuencias_nodos)
         builder.generar_normas_asociacion(processor.terminos_dict)
         
         reportar("📈 Generando grafos finales Galex...")
-        builder.construir_grafos_galex()
+        builder.construir_grafos_galex(vocab_freq=frecuencias_nodos)
 
         # --- FASE 4: REGISTRO FINAL ---
         reportar(f"📦 Fase 4: Registrando diccionario en el índice...")
