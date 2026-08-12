@@ -50,6 +50,9 @@ class GECO3Client:
         headers = {}
         if self.token:
             headers["Authorization"] = "Token " + self.token
+        if self.app_token:
+            headers["X-GECO-App"] = self.app_name
+            headers["X-GECO-App-Token"] = self.app_token
         return headers
 
     def call_endpoint(self, path, method, data=None, headers=None):
@@ -135,14 +138,12 @@ class GECO3Client:
         return True
 
     def corpus_app(self):
-        """ Obtiene los corpus disponibles para la aplicación registrada """
-        headers = self._get_headers()
-        path = self.PATH_CORPUS_APP.format(app_name=self.app_name)
-        resp = self.call_endpoint(path, method="get", headers=headers)
-        resp = resp.json()
-        if "proyectos" in resp:
-            return resp["proyectos"]
-        return []
+        """Return corpus visible to this user and linked to this app.
+
+        ``corpus/`` receives the user token and app credentials together, so
+        GECO applies the intersection server-side.
+        """
+        return self.corpus_publicos()
 
     def corpus_publicos(self):
         """ Obtiene todos los corpus publicos """
