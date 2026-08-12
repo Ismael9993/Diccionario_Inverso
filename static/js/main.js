@@ -9,7 +9,9 @@ let allDocumentsCache = new Map(); // id -> nombre cache para evitar peticiones 
 let lastMetaRes = null;
 let lastFilterSelection = {};
 let sessionCorpusId = null;
-let locationPathName = location.pathname === "/" ? "" : location.pathname;
+// Keep API requests under the mounted application path without producing a
+// double slash when the public URL ends in / (as /diccionario/ does).
+let locationPathName = location.pathname === "/" ? "" : location.pathname.replace(/\/$/, "");
 let monitorInterval = null;
 let lastCreatedDic = null; // Guardar el nombre del último diccionario creado
 
@@ -1220,4 +1222,3 @@ document.addEventListener("DOMContentLoaded", function () {
   });
 
 });
-

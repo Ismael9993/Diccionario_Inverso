@@ -14,6 +14,33 @@ from typing import List, Dict, Any, Optional
 import networkx as nx
 from collections import defaultdict, Counter
 from operator import itemgetter
+
+
+# text2graphapi calls nltk.download() unconditionally while importing.  The
+# container already provides these resources, so avoid an unnecessary outbound
+# request on every worker start while retaining NLTK's normal fallback for a
+# resource that is genuinely absent in a development installation.
+_nltk_download = nltk.download
+_BUNDLED_NLTK_RESOURCES = {
+    "punkt": "tokenizers/punkt",
+    "stopwords": "corpora/stopwords",
+    "wordnet": "corpora/wordnet.zip",
+}
+
+
+def _download_nltk_if_missing(resource, *args, **kwargs):
+    resource_path = _BUNDLED_NLTK_RESOURCES.get(resource)
+    if resource_path:
+        try:
+            nltk.data.find(resource_path)
+            return True
+        except LookupError:
+            pass
+    return _nltk_download(resource, *args, **kwargs)
+
+
+nltk.download = _download_nltk_if_missing
+
 from text2graphapi.src.Cooccurrence import Cooccurrence
 from geco3_client.client import GECO3Client
 
@@ -60,6 +87,10 @@ def load_config() -> Dict[str, Any]:
     config["app_password"] = os.getenv("GECO_APP_PASSWORD", config.get("app_password", None))
     config["user_token"] = os.getenv("GECO_USER_TOKEN", config.get("user_token", None))
     config["data_dir"] = _resolve_data_dir(os.getenv("DATA_DIR", config.get("data_dir")))
+    # The public path is supplied by Compose when the application is served
+    # through the stack proxy (for example, /diccionario).  Keep it optional so
+    # local `python app.py` use remains rooted at /.
+    config["url_prefix"] = os.getenv("URL_PREFIX", config.get("url_prefix", "")).strip("/")
     return config
 
 # Cargar configuración
@@ -72,7 +103,7 @@ os.makedirs(DATA_DIR, exist_ok=True)
 os.makedirs(GRAPH_DIR, exist_ok=True)
 
 
-def get_client(token=None, is_encrypted=True):
+def get_client(token=None, is_encrypted=True, strict=False):
     """
     Factory function to create an authenticated GECO3 client.
 
@@ -94,6 +125,8 @@ def get_client(token=None, is_encrypted=True):
     try:
         client.login(token=token, is_token_encrypted=is_encrypted if token else False)
     except Exception as e:
+        if strict:
+            raise
         print(f"Token login failed, falling back to anonymous: {e}")
         client.login()  # Fallback to anonymous
 
@@ -109,8 +142,9 @@ import spacy
 import sys
 import subprocess
 
-def asegurar_modelo_spacy(nombre_modelo="es_core_news_lg"):
+def asegurar_modelo_spacy(nombre_modelo=None):
     """Verifica si el modelo de spaCy está instalado, si no, lo descarga."""
+    nombre_modelo = nombre_modelo or os.getenv("SPACY_MODEL", "es_core_news_lg")
     if not spacy.util.is_package(nombre_modelo):
         print(f"Instalando modelo {nombre_modelo} automáticamente...")
         subprocess.check_call([sys.executable, "-m", "spacy", "download", nombre_modelo])
@@ -118,9 +152,10 @@ def asegurar_modelo_spacy(nombre_modelo="es_core_news_lg"):
         print(f"Modelo {nombre_modelo} detectado correctamente.")
 
 # Llamar a la función antes de cargar el nlp
-asegurar_modelo_spacy("es_core_news_lg")
+SPACY_MODEL = os.getenv("SPACY_MODEL", "es_core_news_lg")
+asegurar_modelo_spacy(SPACY_MODEL)
 try:
-    nlp = spacy.load("es_core_news_lg")
+    nlp = spacy.load(SPACY_MODEL)
 except Exception as e:
     print(f"Error al cargar el modelo: {e}")
 
@@ -1841,4 +1876,3 @@ if __name__ == "__main__":
         print(f"Error al cargar el buscador: {e}")
 
     print("\nSistema cerrado.")
-

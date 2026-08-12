@@ -11,6 +11,7 @@ class GECO3Client:
     DISPLAY_NAME_ANONIMO = "Usuario Anónimo"
     PATH_LOGIN = "proyectos/apidocs/get-token"
     PATH_LOGIN_APP = "proyectos/apidocs/get-token-app"
+    PATH_WHOAMI = 'proyectos/apidocs/whoami'
     PATH_CORPUS_PUBLICOS = 'proyectos/apidocs/corpus/'
     PATH_CORPUS_PRIVADOS = 'proyectos/apidocs/corpus/colabora'
     PATH_CORPUS_APP = 'proyectos/apidocs/apps/{app_name}/proyectos'
@@ -42,9 +43,6 @@ class GECO3Client:
             print(f"Login app {self.app_name}")
             self.login_app()
 
-    def set_user_name(self, name):
-        self.user_info["name"] = name
-
     def is_app_logged(self):
         return self.app_token is not None
 
@@ -52,6 +50,9 @@ class GECO3Client:
         headers = {}
         if self.token:
             headers["Authorization"] = "Token " + self.token
+        if self.app_token:
+            headers["X-GECO-App"] = self.app_name
+            headers["X-GECO-App-Token"] = self.app_token
         return headers
 
     def call_endpoint(self, path, method, data=None, headers=None):
@@ -126,35 +127,23 @@ class GECO3Client:
             self.init_user(is_anon)
 
     def init_user(self, is_anon):
-        """ La idea de esto es que se mande llamar un endpoint que nos
-        de la informacion del usuario (nombre), y al mismo tiempo
-        estaremos confirmando que la token sea válida
-        
-        Por el momento no hay un endpoint para obtener info del
-        usuario así que asumiremos que la token es válida siempre
-        (si no lo es lanzaremos una excepción cuando se intente
-        acceder a alguno de los otros endpoints)
-
-        Por el momento el nombre del usuario se debe establecer
-        aparte usando el método set_user_name()
-        """
-
-        name = None
-        if is_anon:
-            name = self.DISPLAY_NAME_ANONIMO
-
-        self.user_info = {"name": name, "is_anon": is_anon}
+        """Validate the token and obtain its canonical identity from GECO."""
+        resp = self.call_endpoint(self.PATH_WHOAMI, method="get",
+                                  headers=self._get_headers())
+        username = resp.json().get("username")
+        if not username:
+            raise Exception("GECO3 no devolvió el usuario autenticado")
+        self.user_info = {"name": username, "username": username,
+                          "is_anon": is_anon}
         return True
 
     def corpus_app(self):
-        """ Obtiene los corpus disponibles para la aplicación registrada """
-        headers = self._get_headers()
-        path = self.PATH_CORPUS_APP.format(app_name=self.app_name)
-        resp = self.call_endpoint(path, method="get", headers=headers)
-        resp = resp.json()
-        if "proyectos" in resp:
-            return resp["proyectos"]
-        return []
+        """Return corpus visible to this user and linked to this app.
+
+        ``corpus/`` receives the user token and app credentials together, so
+        GECO applies the intersection server-side.
+        """
+        return self.corpus_publicos()
 
     def corpus_publicos(self):
         """ Obtiene todos los corpus publicos """
@@ -198,7 +187,11 @@ class GECO3Client:
         metatados_dict = {}
         for metadato in metadatos:
             metatados_dict[metadato[0]] = metadato[1]
-        for id_doc, titulo_doc, metadatos_doc in tabla:
+        for row in tabla:
+            # GECO 4 appends the POS-tagging status as a fourth item.  Older
+            # GECO deployments return the original three-item row, so keep the
+            # client compatible with both response shapes.
+            id_doc, titulo_doc, metadatos_doc = row[:3]
             metadata = {}
             for id_metadato, valor_metadato in metadatos_doc:
                 nombre_metadato = metatados_dict[id_metadato]
@@ -206,7 +199,8 @@ class GECO3Client:
             doc = {
                 "id": id_doc,
                 "name": titulo_doc,
-                "metadata": metadata
+                "metadata": metadata,
+                "pos_tagging_status": row[3] if len(row) > 3 else None,
             }
             docs.append(doc)
         return docs
