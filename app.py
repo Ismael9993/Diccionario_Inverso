@@ -60,7 +60,6 @@ DICCIONARIOS_PROTEGIDOS = [
 ]
 
 url_prefix = CONFIG.get('url_prefix', '').strip('/')
-
 if url_prefix:
     static_url_path = '/' + url_prefix + '/static'
 else:
@@ -204,7 +203,7 @@ def graph_to_json(G, top_n_nodes=None, terminos_validos=None):
         try:
             nodes_sorted = sorted(
                 [(n, G.nodes[n]) for n in nodes_list],
-                key=lambda x: x[1].get("frequency", 0),
+                key=lambda x: x[1].get("frequency", x[1].get("frecuencia", 0)),
                 reverse=True,
             )[:top_n_nodes]
             nodes_list = [n for n, _ in nodes_sorted]
@@ -216,7 +215,7 @@ def graph_to_json(G, top_n_nodes=None, terminos_validos=None):
         nodes.append(
             {
                 "id": n,
-                "frequency": int(data.get("frequency", 0)),
+                "frequency": int(data.get("frequency", data.get("frecuencia", 1))),
                 "degree": int(data.get("degree", G.degree(n))),
             }
         )
@@ -344,7 +343,6 @@ def api_process():
 
     if not corpus_id or not doc_ids or not dic_name:
         return jsonify({"ok": False, "error": "Faltan corpus_id, doc_ids o dic_name"}), 400
-
     # A background thread has no Flask request/session context.  Preserve the
     # encrypted GECO SSO token while handling this request so the worker uses
     # the authenticated user rather than falling back to the anonymous account.
@@ -352,11 +350,9 @@ def api_process():
     if not token:
         return jsonify({"ok": False, "error": "Inicia sesión en GECO para crear un diccionario."}), 401
     nombre_user = session['geco3user'].get('name', 'Anónimo')
-
     # Reiniciar el estado para el nuevo proceso
     state["status"] = "processing"
     state["message"] = "Iniciando pipeline..."
-
     # Definimos el callback que Dic_Inv usará para avisarnos de cambios
     def mi_callback(nuevo_mensaje):
         state["message"] = nuevo_mensaje
@@ -365,7 +361,6 @@ def api_process():
     def run_pipeline():
         try:
             client = get_client(token=token, is_encrypted=True, strict=True)
-            # PASAMOS mi_callback al argumento status_callback
             exito, msg = ejecutar_pipeline_completo(
                 nombre_dic=dic_name,
                 corpus_id=corpus_id,
@@ -486,9 +481,9 @@ def api_search():
         if rd is None:
             return jsonify({"ok": False, "error": "No hay diccionario cargado."}), 400
 
-    resultados = rd.buscar(definition, n_sugerencias=top_k)
+    resultados = rd.buscar(definition, n_sugerencias=top_k, retornar_scores=True)
     if resultados and len(resultados) > 0:
-        resultados_s = [{"palabra": str(r[0] if isinstance(r, tuple) else r)} for r in resultados]
+        resultados_s = [{"termino": str(t), "score": round(float(s), 3)} for t, s in resultados]
     else:
         resultados_s = []
         
