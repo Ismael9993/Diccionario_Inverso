@@ -36,4 +36,6 @@ USER diccionario
 
 EXPOSE 5000
 
-CMD ["gunicorn", "--bind", "0.0.0.0:5000", "--workers", "2", "--timeout", "600", "app:app"]
+# Each worker loads the large Spanish spaCy model.  Keep one worker by default
+# so the service remains stable on the 8 GB deployment VM.
+CMD ["gunicorn", "--bind", "0.0.0.0:5000", "--workers", "1", "--timeout", "600", "app:app"]
