@@ -60,6 +60,7 @@ DICCIONARIOS_PROTEGIDOS = [
 ]
 
 url_prefix = CONFIG.get('url_prefix', '').strip('/')
+
 if url_prefix:
     static_url_path = '/' + url_prefix + '/static'
 else:
@@ -88,7 +89,7 @@ app.config['SESSION_COOKIE_HTTPONLY'] = True
 # Restrict the cookie to this app's public path, keeping it isolated from GECO
 # and the other applications sharing the same domain.
 app.config['SESSION_COOKIE_PATH'] = '/' + url_prefix if url_prefix else '/'
-app.config['PERMANENT_SESSION_LIFETIME'] = 1800  # 30 minutes
+app.config['PERMANENT_SESSION_LIFETIME'] = 1800  # 30 minutesapp.config['PERMANENT_SESSION_LIFETIME'] = 1800  # 30 minutes
 
 
 # ============================================
@@ -126,6 +127,7 @@ def auth():
     token = (request.args.get('token') or '').strip()
     corpus = request.args.get('corpus')
 
+    # Handle space encoding in URL parameters
     if not token:
         session.pop('geco3user', None)
         return redirect(url_for('index'))
@@ -350,6 +352,7 @@ def api_process():
     if not token:
         return jsonify({"ok": False, "error": "Inicia sesión en GECO para crear un diccionario."}), 401
     nombre_user = session['geco3user'].get('name', 'Anónimo')
+
     # Reiniciar el estado para el nuevo proceso
     state["status"] = "processing"
     state["message"] = "Iniciando pipeline..."
@@ -367,7 +370,6 @@ def api_process():
                 doc_ids=doc_ids,
                 client=client,
                 nlp_model=nlp,
-                nombre_user=nombre_user,
                 status_callback=mi_callback  # <--- ESTO ES LO QUE CONECTA TODO
             )
             if exito:

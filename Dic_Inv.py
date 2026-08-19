@@ -142,7 +142,7 @@ import spacy
 import sys
 import subprocess
 
-def asegurar_modelo_spacy(nombre_modelo=None):
+def asegurar_modelo_spacy(nombre_modelo=None):    
     """Verifica si el modelo de spaCy está instalado, si no, lo descarga."""
     if not spacy.util.is_package(nombre_modelo):
         print(f"Instalando modelo {nombre_modelo} automáticamente...")

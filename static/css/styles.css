@@ -36,11 +36,12 @@ body {
     box-shadow: 0 0.125rem 0.25rem rgba(0, 0, 0, 0.075) !important;
 }
 
-h5, h6 {
+h5,
+h6 {
     color: #495057;
 }
 
-[data-theme="dark"] h5, 
+[data-theme="dark"] h5,
 [data-theme="dark"] h6 {
     color: #e0e0e0;
 }
@@ -55,13 +56,15 @@ h5, h6 {
     color: var(--text-color);
 }
 
-.form-control, .form-select {
+.form-control,
+.form-select {
     background-color: var(--card-bg);
     border-color: var(--border-color);
     color: var(--text-color);
 }
 
-.form-control:focus, .form-select:focus {
+.form-control:focus,
+.form-select:focus {
     background-color: var(--card-bg);
     color: var(--text-color);
 }
@@ -167,7 +170,7 @@ h5, h6 {
     border-radius: 12px;
     padding: 1.25rem;
     transition: all 0.3s ease;
-    box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
     height: 100%;
     display: flex;
     flex-direction: column;
@@ -177,13 +180,29 @@ h5, h6 {
 .file-card:hover {
     background-color: var(--bg-color);
     transform: translateY(-5px);
-    box-shadow: 0 8px 15px rgba(0,0,0,0.1);
+    box-shadow: 0 8px 15px rgba(0, 0, 0, 0.1);
 }
 
-.border-excel { border-left: 5px solid #198754; } /* Bootstrap success (verde) */
-.border-grafo { border-left: 5px solid #0d6efd; } /* Bootstrap primary (azul) */
-.border-json  { border-left: 5px solid #ffc107; } /* Bootstrap warning (amarillo) */
-.border-text  { border-left: 5px solid #6c757d; } /* Bootstrap secondary (gris) */
+.border-excel {
+    border-left: 5px solid #198754;
+}
+
+/* Bootstrap success (verde) */
+.border-grafo {
+    border-left: 5px solid #0d6efd;
+}
+
+/* Bootstrap primary (azul) */
+.border-json {
+    border-left: 5px solid #ffc107;
+}
+
+/* Bootstrap warning (amarillo) */
+.border-text {
+    border-left: 5px solid #6c757d;
+}
+
+/* Bootstrap secondary (gris) */
 
 .file-title {
     font-weight: bold;
@@ -219,7 +238,7 @@ h5, h6 {
     flex-grow: 1;
     height: auto !important;
     border: none !important;
-    box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
     border-radius: 8px;
 }
 
@@ -230,7 +249,7 @@ h5, h6 {
 
 /* Sincronización de panel lateral con pantalla completa */
 .offcanvas {
-    z-index: 10001 !important; 
+    z-index: 10001 !important;
 }
 
 .offcanvas-backdrop {
@@ -238,35 +257,44 @@ h5, h6 {
 }
 
 /* Custom Navbar Styling */
-.navbar.bg-primary, 
+.navbar.bg-primary,
 .navbar {
-    background-color: #3164f4 !important; /* Este es el azul exacto detectado en tu imagen */
-    background-image: none !important; /* Eliminamos el gradiente que causa el parche */
-    border: none !important;             /* Elimina bordes sutiles */
-    box-shadow: 0 2px 4px rgba(0,0,0,0.1); /* Mantenemos una sombra sutil */
+    background-color: #3164f4 !important;
+    /* Este es el azul exacto detectado en tu imagen */
+    background-image: none !important;
+    /* Eliminamos el gradiente que causa el parche */
+    border: none !important;
+    /* Elimina bordes sutiles */
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+    /* Mantenemos una sombra sutil */
     transition: background-color 0.4s ease;
     padding-top: 0.5rem;
     padding-bottom: 0.5rem;
 }
 
 /* Ajustar los botones de la navbar para que combinen */
-.navbar .nav-link, .navbar-text {
+.navbar .nav-link,
+.navbar-text {
     color: white !important;
 }
 
 /* User Capsule Styling */
 .user-capsule {
-    background-color: rgba(255, 255, 255, 0.15); /* Blanco semi-transparente */
+    background-color: rgba(255, 255, 255, 0.15);
+    /* Blanco semi-transparente */
     padding: 6px 15px;
-    border-radius: 50px; /* Forma de cápsula */
-    border: 1px solid rgba(255, 255, 255, 0.3); /* Borde sutil */
+    border-radius: 50px;
+    /* Forma de cápsula */
+    border: 1px solid rgba(255, 255, 255, 0.3);
+    /* Borde sutil */
     transition: all 0.3s ease;
     display: flex;
     align-items: center;
 }
 
 .user-capsule:hover {
-    background-color: rgba(255, 255, 255, 0.25); /* Resalta un poco más al pasar el mouse */
+    background-color: rgba(255, 255, 255, 0.25);
+    /* Resalta un poco más al pasar el mouse */
     cursor: default;
 }
 
@@ -278,14 +306,18 @@ h5, h6 {
 
 .navbar-brand img {
     transition: transform 0.3s ease;
-    object-fit: contain; /* Evita que la imagen se estire */
-    max-width: 100%;    /* Asegura responsividad en móviles */
-    margin-top: -5px;   /* Ajuste sutil de alineación */
+    object-fit: contain;
+    /* Evita que la imagen se estire */
+    max-width: 100%;
+    /* Asegura responsividad en móviles */
+    margin-top: -5px;
+    /* Ajuste sutil de alineación */
     margin-bottom: -5px;
 }
 
 .navbar-brand:hover img {
-    transform: scale(1.05); /* Efecto sutil al pasar el mouse */
+    transform: scale(1.05);
+    /* Efecto sutil al pasar el mouse */
 }
 
 [data-theme="dark"] .navbar {
@@ -323,7 +355,7 @@ h5, h6 {
 
 .info-card:hover {
     transform: translateY(-5px);
-    box-shadow: 0 10px 20px rgba(0,0,0,0.08) !important;
+    box-shadow: 0 10px 20px rgba(0, 0, 0, 0.08) !important;
 }
 
 [data-theme="dark"] .info-card {
